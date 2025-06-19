@@ -1,1 +1,227 @@
+import sqlite3
+import tkinter as tk
+from tkinter import ttk, messagebox
 
+DB = "escola.db"
+
+
+def conectar():
+    return sqlite3.connect(DB)
+
+
+def criar_tabelas():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS alunos (
+            id TEXT PRIMARY KEY,
+            matricula TEXT UNIQUE NOT NULL,
+            nome TEXT NOT NULL,
+            data_nascimento TEXT NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS disciplinas (
+            id TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            carga_horaria INTEGER NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            matricula_aluno TEXT NOT NULL,
+            id_disciplina TEXT NOT NULL,
+            nota REAL NOT NULL,
+            FOREIGN KEY (matricula_aluno) REFERENCES alunos(matricula),
+            FOREIGN KEY (id_disciplina) REFERENCES disciplinas(id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+# === CRUD Aluno ===
+def inserir_aluno():
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO alunos VALUES (?, ?, ?, ?)", (
+            entry_id_aluno.get(),
+            entry_matricula.get(),
+            entry_nome.get(),
+            entry_data.get()
+        ))
+        conn.commit()
+        messagebox.showinfo("Sucesso", "Aluno inserido!")
+        listar_alunos()
+    except sqlite3.IntegrityError:
+        messagebox.showerror("Erro", "ID ou matrícula duplicada!")
+    finally:
+        conn.close()
+
+
+def listar_alunos():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM alunos")
+    tabela_alunos.delete(*tabela_alunos.get_children())
+    for row in cursor.fetchall():
+        tabela_alunos.insert("", tk.END, values=row)
+    conn.close()
+
+
+# === CRUD Disciplina ===
+def inserir_disciplina():
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO disciplinas VALUES (?, ?, ?)", (
+            entry_id_disciplina.get(),
+            entry_nome_disc.get(),
+            entry_carga.get()
+        ))
+        conn.commit()
+        messagebox.showinfo("Sucesso", "Disciplina inserida!")
+        listar_disciplinas()
+    except sqlite3.IntegrityError:
+        messagebox.showerror("Erro", "ID já cadastrado!")
+    finally:
+        conn.close()
+
+
+def listar_disciplinas():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM disciplinas")
+    tabela_disciplinas.delete(*tabela_disciplinas.get_children())
+    for row in cursor.fetchall():
+        tabela_disciplinas.insert("", tk.END, values=row)
+    conn.close()
+
+
+# === CRUD Nota ===
+def inserir_nota():
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO notas (matricula_aluno, id_disciplina, nota)
+            VALUES (?, ?, ?)""", (
+            entry_mat_nota.get(),
+            entry_disc_nota.get(),
+            entry_valor_nota.get()
+        ))
+        conn.commit()
+        messagebox.showinfo("Sucesso", "Nota lançada!")
+        listar_notas()
+    except sqlite3.IntegrityError:
+        messagebox.showerror("Erro", "Erro ao lançar nota!")
+    finally:
+        conn.close()
+
+
+def listar_notas():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT notas.id, alunos.nome, disciplinas.nome, notas.nota
+        FROM notas
+        JOIN alunos ON alunos.matricula = notas.matricula_aluno
+        JOIN disciplinas ON disciplinas.id = notas.id_disciplina
+    """)
+    tabela_notas.delete(*tabela_notas.get_children())
+    for row in cursor.fetchall():
+        tabela_notas.insert("", tk.END, values=row)
+    conn.close()
+
+
+# ========== INTERFACE ==========
+
+criar_tabelas()
+root = tk.Tk()
+root.title("Sistema Escolar Completo")
+
+abas = ttk.Notebook(root)
+abas.pack(padx=10, pady=10)
+
+# === Aba Aluno ===
+aba_aluno = tk.Frame(abas)
+abas.add(aba_aluno, text="Alunos")
+
+tk.Label(aba_aluno, text="ID").grid(row=0, column=0)
+entry_id_aluno = tk.Entry(aba_aluno)
+entry_id_aluno.grid(row=0, column=1)
+
+tk.Label(aba_aluno, text="Matrícula").grid(row=1, column=0)
+entry_matricula = tk.Entry(aba_aluno)
+entry_matricula.grid(row=1, column=1)
+
+tk.Label(aba_aluno, text="Nome").grid(row=2, column=0)
+entry_nome = tk.Entry(aba_aluno)
+entry_nome.grid(row=2, column=1)
+
+tk.Label(aba_aluno, text="Data de Nascimento").grid(row=3, column=0)
+entry_data = tk.Entry(aba_aluno)
+entry_data.grid(row=3, column=1)
+
+tk.Button(aba_aluno, text="Inserir Aluno", command=inserir_aluno).grid(row=4, column=0, columnspan=2, pady=5)
+
+tabela_alunos = ttk.Treeview(aba_aluno, columns=("id", "matricula", "nome", "data"), show="headings")
+for col in ("id", "matricula", "nome", "data"):
+    tabela_alunos.heading(col, text=col.capitalize())
+    tabela_alunos.column(col, width=150)
+tabela_alunos.grid(row=5, column=0, columnspan=2)
+listar_alunos()
+
+# === Aba Disciplina ===
+aba_disciplina = tk.Frame(abas)
+abas.add(aba_disciplina, text="Disciplinas")
+
+tk.Label(aba_disciplina, text="ID").grid(row=0, column=0)
+entry_id_disciplina = tk.Entry(aba_disciplina)
+entry_id_disciplina.grid(row=0, column=1)
+
+tk.Label(aba_disciplina, text="Nome").grid(row=1, column=0)
+entry_nome_disc = tk.Entry(aba_disciplina)
+entry_nome_disc.grid(row=1, column=1)
+
+tk.Label(aba_disciplina, text="Carga Horária").grid(row=2, column=0)
+entry_carga = tk.Entry(aba_disciplina)
+entry_carga.grid(row=2, column=1)
+
+tk.Button(aba_disciplina, text="Inserir Disciplina", command=inserir_disciplina).grid(row=3, column=0, columnspan=2, pady=5)
+
+tabela_disciplinas = ttk.Treeview(aba_disciplina, columns=("id", "nome", "carga_horaria"), show="headings")
+for col in ("id", "nome", "carga_horaria"):
+    tabela_disciplinas.heading(col, text=col.capitalize())
+    tabela_disciplinas.column(col, width=150)
+tabela_disciplinas.grid(row=4, column=0, columnspan=2)
+listar_disciplinas()
+
+# === Aba Notas ===
+aba_nota = tk.Frame(abas)
+abas.add(aba_nota, text="Notas")
+
+tk.Label(aba_nota, text="Matrícula Aluno").grid(row=0, column=0)
+entry_mat_nota = tk.Entry(aba_nota)
+entry_mat_nota.grid(row=0, column=1)
+
+tk.Label(aba_nota, text="ID Disciplina").grid(row=1, column=0)
+entry_disc_nota = tk.Entry(aba_nota)
+entry_disc_nota.grid(row=1, column=1)
+
+tk.Label(aba_nota, text="Nota").grid(row=2, column=0)
+entry_valor_nota = tk.Entry(aba_nota)
+entry_valor_nota.grid(row=2, column=1)
+
+tk.Button(aba_nota, text="Lançar Nota", command=inserir_nota).grid(row=3, column=0, columnspan=2, pady=5)
+
+tabela_notas = ttk.Treeview(aba_nota, columns=("id", "aluno", "disciplina", "nota"), show="headings")
+for col in ("id", "aluno", "disciplina", "nota"):
+    tabela_notas.heading(col, text=col.capitalize())
+    tabela_notas.column(col, width=150)
+tabela_notas.grid(row=4, column=0, columnspan=2)
+listar_notas()
+
+root.mainloop()
